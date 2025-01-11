@@ -42,6 +42,14 @@ For text selection grabbing (--grab option):
     # RedHat/CentOS
     sudo yum install xclip
 
+For window focusing (--focus option):
+
+    # Debian/Ubuntu
+    sudo apt-get install wmctrl
+
+    # RedHat/CentOS
+    sudo yum install wmctrl
+
 ## Usage
 
 ### Basic Usage
@@ -52,6 +60,7 @@ For text selection grabbing (--grab option):
 
 - `--gui`: Opens a GUI dialog for entering/editing the identifier
 - `--grab`: Uses currently selected text as the identifier (sanitized for safety)
+- `--focus`: Focuses the browser/application window after opening the URL/file
 - Both options can be combined: `--gui --grab`
 
 ### Security Features

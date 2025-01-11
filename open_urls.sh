@@ -2,6 +2,7 @@
 
 show_gui=false
 grab_selection=false
+focus_window=false
 input=""
 
 # Parse command line arguments
@@ -15,6 +16,10 @@ while [[ $# -gt 0 ]]; do
             grab_selection=true
             shift
             ;;
+        --focus)
+            focus_window=true
+            shift
+            ;;
         *)
             input="$1"
             shift
@@ -23,6 +28,16 @@ while [[ $# -gt 0 ]]; do
 done
 
 config_file="$(dirname "$0")/url_patterns.conf"
+
+# Check for wmctrl if focus is requested
+if [ "$focus_window" = true ]; then
+    if ! command -v wmctrl &> /dev/null; then
+        echo "Error: wmctrl is not installed. Please install it first:"
+        echo "sudo apt-get install wmctrl  # For Debian/Ubuntu"
+        echo "sudo yum install wmctrl      # For RedHat/CentOS"
+        exit 1
+    fi
+fi
 
 if [ ! -f "$config_file" ]; then
     echo "Error: Configuration file not found: $config_file"
@@ -159,6 +174,123 @@ while IFS= read -r line || [ -n "$line" ]; do
             [ "$show_gui" = true ] && zenity --error --text="Could not open URL: $url" --width=300
             echo "Error: Could not open URL"
         }
+        
+        # Focus the window if requested
+        if [ "$focus_window" = true ]; then
+            # Wait a bit for the application to open
+            sleep 0.5
+            
+            # Function to find and focus the most relevant window
+            focus_relevant_window() {
+                local search_terms=("$@")
+                local windows
+                # Get list of all windows with their window class
+                windows=$(wmctrl -lx)
+                
+                for term in "${search_terms[@]}"; do
+                    # Try to find window containing the search term (case-insensitive)
+                    if window_id=$(echo "$windows" | grep -i "$term" | head -n1 | cut -d' ' -f1); then
+                        wmctrl -i -a "$window_id"
+                        return 0
+                    fi
+                done
+                return 1
+            }
+            
+            # Try to focus the window based on the URL or file path
+            if [[ "$url" == *"://"* ]]; then
+                # For URLs, try to focus the default browser
+                default_browser=$(xdg-settings get default-web-browser 2>/dev/null | cut -d. -f1 | tr '[:upper:]' '[:lower:]')
+                case "$default_browser" in
+                    "firefox")
+                        focus_relevant_window "Firefox" "firefox"
+                        ;;
+                    "google-chrome")
+                        focus_relevant_window "Google Chrome" "chrome"
+                        ;;
+                    "chromium")
+                        focus_relevant_window "Chromium" "chromium"
+                        ;;
+                    *)
+                        # If default browser not recognized, try common browsers
+                        focus_relevant_window "Firefox" "Chrome" "Chromium" "Edge" "Opera"
+                        ;;
+                esac
+            else
+                # For files/directories, try to focus the relevant file manager
+                if [ -d "$url" ]; then
+                    # Get default file manager
+                    default_fm=$(xdg-mime query default inode/directory 2>/dev/null | cut -d. -f1 | tr '[:upper:]' '[:lower:]')
+                    case "$default_fm" in
+                        "nautilus")
+                            focus_relevant_window "nautilus" "Files"
+                            ;;
+                        "nemo")
+                            focus_relevant_window "nemo"
+                            ;;
+                        "dolphin")
+                            focus_relevant_window "dolphin"
+                            ;;
+                        "thunar")
+                            focus_relevant_window "thunar"
+                            ;;
+                        "pcmanfm")
+                            focus_relevant_window "pcmanfm"
+                            ;;
+                        *)
+                            # If default file manager not recognized, try common ones
+                            focus_relevant_window "nautilus" "nemo" "dolphin" "thunar" "pcmanfm" "Files"
+                            ;;
+                    esac
+                else
+                    # For files, try to focus based on the file type
+                    # Get the default application for this file type
+                    mime_type=$(file --mime-type -b "$url")
+                    default_app=$(xdg-mime query default "$mime_type" 2>/dev/null | cut -d. -f1 | tr '[:upper:]' '[:lower:]')
+                    
+                    if [ -n "$default_app" ]; then
+                        # Try to focus the default app first
+                        case "$default_app" in
+                            "evince")
+                                focus_relevant_window "evince" "Document Viewer"
+                                ;;
+                            "okular")
+                                focus_relevant_window "okular"
+                                ;;
+                            "eog")
+                                focus_relevant_window "eog" "Image Viewer"
+                                ;;
+                            "gimp")
+                                focus_relevant_window "gimp"
+                                ;;
+                            "gedit")
+                                focus_relevant_window "gedit" "Text Editor"
+                                ;;
+                            "kate")
+                                focus_relevant_window "kate"
+                                ;;
+                            "code")
+                                focus_relevant_window "code" "Visual Studio Code"
+                                ;;
+                            "vlc")
+                                focus_relevant_window "vlc"
+                                ;;
+                            *)
+                                # Try the app name directly and then fallback to filename
+                                if ! focus_relevant_window "$default_app"; then
+                                    filename=$(basename "$url")
+                                    focus_relevant_window "$filename"
+                                fi
+                                ;;
+                        esac
+                    else
+                        # Fallback to filename if no default app found
+                        filename=$(basename "$url")
+                        focus_relevant_window "$filename"
+                    fi
+                fi
+            fi
+        fi
     fi
 done < "$config_file"
 
