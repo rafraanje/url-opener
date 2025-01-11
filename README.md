@@ -1,6 +1,6 @@
 # URL Opener
 
-A command-line tool that opens URLs based on pattern matching. It's particularly useful for quickly opening issue trackers, tickets, or other pattern-based URLs.
+A command-line tool that opens URLs based on pattern matching. It's particularly useful for quickly opening issue trackers, tickets, or other pattern-based URLs. It can also open local files.
 
 ## Features
 
@@ -11,6 +11,12 @@ A command-line tool that opens URLs based on pattern matching. It's particularly
 - Support for regex capture groups
 
 ## Installation
+
+The script requires a configuration file to work. Copy the example configuration:
+
+    cp url_patterns.example.conf url_patterns.conf
+
+Then edit `url_patterns.conf` to match your needs. The example configuration contains common patterns that you can customize, see the [Configuration](#configuration) section for more information.
 
 ### Dependencies
 
@@ -45,8 +51,20 @@ For text selection grabbing (--grab option):
 ### Options
 
 - `--gui`: Opens a GUI dialog for entering/editing the identifier
-- `--grab`: Uses currently selected text as the identifier
+- `--grab`: Uses currently selected text as the identifier (sanitized for safety)
 - Both options can be combined: `--gui --grab`
+
+### Security Features
+
+The script includes several security measures:
+
+- Selected text is sanitized by:
+  - Removing control characters
+  - Removing whitespace
+  - Limiting length to 1000 characters
+- File paths are validated before opening
+- URL patterns must explicitly match the entire input
+- Direct URLs must contain `://` to prevent command injection
 
 ### Examples
 
@@ -74,6 +92,12 @@ The script uses a configuration file `url_patterns.conf` to define URL patterns.
     ^([A-Za-z0-9_-]+)#([0-9]+)$|https://github.com/{group1}/issues/{group2}
     ^(PROJECT-[A-Z0-9]+)$|https://company.sentry.io/issues/{match}
 
+    # Local files (with safety checks)
+    ^([.~/]?[-_./A-Za-z0-9]+)$|file://{match}
+
+    # Direct URLs
+    ^(https?://[-_./A-Za-z0-9]+)$|{match}
+
 ### Pattern Format
 
 - Use regular expressions for patterns
@@ -93,5 +117,22 @@ The script uses a configuration file `url_patterns.conf` to define URL patterns.
 
     # Sentry issues
     ^(PROJECT-[A-Z0-9]+)$|https://company.sentry.io/issues/{match}
+
+### Local File Support
+
+The script can safely open local files:
+- Supports absolute and relative paths
+- Expands ~ to home directory
+- Prevents command injection by validating paths
+- Only opens existing, readable files
+- Supports common file extensions and paths containing alphanumeric characters, dots, dashes, and underscores
+
+Examples of valid file paths:
+```bash
+./script.sh
+~/Documents/file.txt
+/etc/hosts
+../relative/path/file.pdf
+```
 
 

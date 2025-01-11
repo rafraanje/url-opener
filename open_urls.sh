@@ -39,11 +39,34 @@ if [ "$grab_selection" = true ]; then
         exit 1
     fi
 
-    # Try to grab the selection
-    grabbed_text=$(xclip -o -selection primary 2>/dev/null || xclip -o -selection clipboard 2>/dev/null)
+    # Create secure temporary file
+    temp_file=$(mktemp -t url-opener.XXXXXX) || exit 1
+    trap 'rm -f "$temp_file"' EXIT
     
-    if [ -n "$grabbed_text" ]; then
-        input="$grabbed_text"
+    # Try to get selection, writing directly to file
+    if ! xclip -o -selection primary > "$temp_file" 2>/dev/null && \
+       ! xclip -o -selection clipboard > "$temp_file" 2>/dev/null; then
+        echo "Error: No text selected"
+        exit 1
+    fi
+    
+    if [ -s "$temp_file" ]; then
+        # Sanitize the grabbed text:
+        # 1. Remove any control characters and non-printable characters
+        # 2. Remove leading/trailing whitespace
+        # 3. Normalize spaces
+        # 4. Limit length
+        sanitized_text=$(tr -cd '[:print:]' < "$temp_file" | \
+            sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | \
+            tr -s '[:space:]' ' ' | \
+            cut -c1-1000)
+        
+        if [ -n "$sanitized_text" ]; then
+            input="$sanitized_text"
+        else
+            echo "Error: Selected text contains only invalid characters"
+            exit 1
+        fi
     else
         echo "Error: No text selected"
         exit 1
@@ -99,7 +122,25 @@ while IFS= read -r line || [ -n "$line" ]; do
     if [[ "$input" =~ $pattern ]]; then
         matched=true
         # Replace {match} with the full match
-        url="${url_template/\{match\}/$input}"
+        if [[ "$url_template" == file://* ]]; then
+            # Expand ~ to home directory if present
+            expanded_path="${input/#\~/$HOME}"
+            # Convert to absolute path
+            abs_path="$(cd "$(dirname "$expanded_path")" 2>/dev/null && pwd -P)"
+            if [ -n "$abs_path" ]; then
+                abs_path="$abs_path/$(basename "$expanded_path")"
+                # Only proceed if file exists and is readable
+                if [ -r "$abs_path" ]; then
+                    url="$abs_path"
+                else
+                    continue  # Skip this pattern if file doesn't exist/isn't readable
+                fi
+            else
+                continue  # Skip this pattern if path is invalid
+            fi
+        else
+            url="${url_template/\{match\}/$input}"
+        fi
         
         # Replace {group1}, {group2}, etc. with captured groups
         for i in "${!BASH_REMATCH[@]}"; do
