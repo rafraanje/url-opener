@@ -1,6 +1,6 @@
 # URL Opener
 
-A command-line tool that opens URLs based on pattern matching. It's particularly useful for quickly opening issue trackers, tickets, or other pattern-based URLs. It can also open local files.
+A command-line tool that opens URLs based on pattern matching. It's particularly useful for quickly opening issue trackers, tickets, or other pattern-based URLs. It can also open local files. This project was created using AI assistance (Cursor).
 
 ## Features
 
